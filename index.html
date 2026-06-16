@@ -425,13 +425,42 @@ function sync(){
 }
 
 async function captureCard(el){
-  const rect=el.getBoundingClientRect();
-  return await html2canvas(el,{
-    scale:1, useCORS:true, allowTaint:true,
-    backgroundColor:'#F5ECD7', logging:false,
-    width:el.offsetWidth, height:el.offsetHeight,
-    scrollX:0, scrollY: window.scrollY + rect.top
+  const rect = el.getBoundingClientRect();
+  const dpr  = window.devicePixelRatio || 2;   // 2x Retina, 3x AMOLED
+  const scale = Math.max(dpr, 2);              // tối thiểu 2x cho sắc nét
+
+  // Chụp ở độ phân giải cao
+  const hiRes = await html2canvas(el, {
+    scale       : scale,
+    useCORS     : true,
+    allowTaint  : true,
+    backgroundColor: '#F5ECD7',
+    logging     : false,
+    width       : el.offsetWidth,
+    height      : el.offsetHeight,
+    scrollX     : 0,
+    scrollY     : window.scrollY + rect.top,
+    imageTimeout: 0,
+    removeContainer: true
   });
+
+  // Resize về vừa chiều rộng màn hình vật lý (giữ sắc nét, không quá to)
+  const screenPx = window.screen.width * dpr;
+  const ratio    = screenPx / hiRes.width;
+  const outW     = Math.round(hiRes.width  * ratio);
+  const outH     = Math.round(hiRes.height * ratio);
+
+  const out = document.createElement('canvas');
+  out.width  = outW;
+  out.height = outH;
+  const ctx  = out.getContext('2d');
+
+  // Dùng imageSmoothingQuality cao nhất
+  ctx.imageSmoothingEnabled = true;
+  ctx.imageSmoothingQuality = 'high';
+  ctx.drawImage(hiRes, 0, 0, outW, outH);
+
+  return out;
 }
 
 async function saveImages(){
