@@ -201,9 +201,9 @@ body{font-family:var(--font);background:#3D2410;min-height:100vh;overflow-x:hidd
   <div class="fg"><span class="fl">Số người lớn</span>
     <select class="fsel" id="f-adults" onchange="sync()">
       <option value="1">1 người lớn</option>
-      <option value="2" selected>2 người lớn</option>
-      <option value="3">3 người lớn</option>
-      <option value="4">4 người lớn</option>
+      <option value="2" selected>2 người lớn (tiêu chuẩn)</option>
+      <option value="3">3 người lớn (+200k/đêm)</option>
+      <option value="4">4 người lớn (+400k/đêm)</option>
     </select>
   </div>
 
@@ -392,36 +392,69 @@ function sync(){
   g('d-wifi').textContent=g('f-wifi').value||'—';
   g('d-conf').textContent=g('f-conf').value||'—';
 
-  // Số khách
-  let guestText=adults+' người lớn';
-  if(kids>0) guestText+=' · '+kids+' trẻ em';
-  g('d-guests').textContent=guestText;
+  // Số đêm
+  const ci=g('f-cin').value, co=g('f-cout').value;
+  const numNights=(ci&&co)?nights(ci,co):1;
+  if(ci){const f=fmt(ci);g('d-cin-day').textContent=f.day;g('d-cin-mo').textContent=f.mo;}
+  if(co){const f=fmt(co);g('d-cout-day').textContent=f.day;g('d-cout-mo').textContent=f.mo;}
+  if(ci&&co) g('d-nights-num').textContent=numNights;
 
-  // Tính phụ phí trẻ em
-  let surcharge=0, kidsDetail=[];
+  // Phụ phí NL (chỉ tính NL thứ 3 trở đi, mỗi NL +200k/đêm)
+  const extraAdults = Math.max(0, adults - 2);
+  const adultSurchargePerNight = extraAdults * 200000;
+  const adultSurchargeTotal    = adultSurchargePerNight * numNights;
+
+  // Phụ phí trẻ em (tính theo đêm)
+  let kidSurchargePerNight=0, kidsDetail=[];
   for(let i=1;i<=kids;i++){
     const sel=g('f-kid-'+i);
     if(!sel) continue;
     const v=sel.value;
-    if(v==='6-11'){surcharge+=150000;kidsDetail.push('Bé '+(i)+': 6–11t +150k');}
-    else if(v==='12+'){surcharge+=200000;kidsDetail.push('Bé '+(i)+': ≥12t +200k');}
-    else{kidsDetail.push('Bé '+(i)+': <6t miễn phí');}
+    if(v==='6-11'){kidSurchargePerNight+=150000;kidsDetail.push('Bé '+i+': 6–11t +150k/đêm');}
+    else if(v==='12+'){kidSurchargePerNight+=200000;kidsDetail.push('Bé '+i+': ≥12t +200k/đêm');}
+    else{kidsDetail.push('Bé '+i+': <6t miễn phí');}
   }
-  const kidsEl=g('d-kids-info');
-  if(kids>0){
-    let txt=kidsDetail.join(' · ');
-    if(surcharge>0) txt+=' → Phụ phí: '+surcharge.toLocaleString('vi-VN')+'đ';
-    kidsEl.textContent=txt;
+  const kidSurchargeTotal = kidSurchargePerNight * numNights;
+
+  // Tổng phụ phí
+  const totalPerNight = adultSurchargePerNight + kidSurchargePerNight;
+  const totalAll      = adultSurchargeTotal + kidSurchargeTotal;
+
+  // Hiển thị số khách
+  let guestText = adults + ' người lớn';
+  if(kids>0) guestText += ' · ' + kids + ' trẻ em';
+  g('d-guests').textContent = guestText;
+
+  // Hiển thị phụ phí
+  const kidsEl = g('d-kids-info');
+  let lines = [];
+
+  if(extraAdults>0){
+    lines.push(extraAdults+'NL phụ: +'+fmt2(adultSurchargePerNight)+'/đêm × '+numNights+' đêm = '+fmt2(adultSurchargeTotal));
+  }
+  if(kids>0) lines.push(...kidsDetail);
+  if(kidSurchargePerNight>0){
+    lines.push('Trẻ em: +'+fmt2(kidSurchargePerNight)+'/đêm × '+numNights+' đêm = '+fmt2(kidSurchargeTotal));
+  }
+  if(totalAll>0){
+    lines.push('⟹ Tổng phụ phí: '+fmt2(totalPerNight)+'/đêm · '+fmt2(totalAll)+' ('+numNights+' đêm)');
+  }
+
+  if(lines.length>0){
+    kidsEl.innerHTML = lines.map((l,i)=>
+      i===lines.length-1
+        ? '<strong style="color:#6B4F0A">'+l+'</strong>'
+        : l
+    ).join('<br>');
     kidsEl.style.display='block';
   } else {
     kidsEl.textContent='';
     kidsEl.style.display='none';
   }
+}
 
-  const ci=g('f-cin').value,co=g('f-cout').value;
-  if(ci){const f=fmt(ci);g('d-cin-day').textContent=f.day;g('d-cin-mo').textContent=f.mo;}
-  if(co){const f=fmt(co);g('d-cout-day').textContent=f.day;g('d-cout-mo').textContent=f.mo;}
-  if(ci&&co) g('d-nights-num').textContent=nights(ci,co);
+function fmt2(n){
+  return n.toLocaleString('vi-VN')+'đ';
 }
 
 async function captureCard(el){
